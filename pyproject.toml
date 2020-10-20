@@ -1,0 +1,59 @@
+[tool.black]
+line-length = 110
+exclude = '''
+/(
+  | \.git
+  | \.mypy_cache
+  | venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 110
+skip_gitignore = true
+
+
+[tool.pylint]
+  [tool.pylint."MESSAGES CONTROL"]
+  # disabled messages
+  # * no-member has a lot of false positive, mypy does it better
+  disable = """
+      bad-continuation,
+      broad-except,
+      fixme,
+      invalid-name,
+      logging-fstring-interpolation,
+      missing-docstring,
+      no-else-return,
+      no-member,
+      protected-access,
+      too-few-public-methods,
+      useless-import-alias,
+  """
+
+  [tool.pylint.FORMAT]
+  max-line-length = "140"
+
+  [tool.pylint.SIMILARITIES]
+  ignore-imports = "yes"
+
+
+[tool.coverage]
+  [tool.coverage.run]
+    omit = ["*/test_*.py"]
+    data_file = "test_results/coverage/coverage.bin"
+
+  [tool.coverage.html]
+    directory = "test_results/coverage_html"
+
+  [tool.coverage.xml]
+    output = "test_results/coverage/coverage.xml"
+
+  [tool.coverage.report]
+    fail_under = 90
+    exclude_lines = [
+      "pragma: no cover", # Re-enable the standard pragma
+      "raise NotImplementedError",
+      "^\\s+\\.\\.\\.$",
+    ]

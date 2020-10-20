@@ -1,0 +1,8 @@
+black==19.10b0
+isort==5.5.3
+mypy>=0.782
+pre-commit>=1.15.2
+pytest-cov>=2.6.1
+coverage[toml]>=5.1
+pytest>=4.3.0
+pylint>=2.6.0
