@@ -12,9 +12,11 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import typing as tp
 import uuid
 import warnings
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -28,6 +30,48 @@ def parse_accounting_info(output: str) -> Dict[str, str]:
         matched = re.match(r"(?P<key>\w+)\s+(?P<value>.*)", line)
         if matched:
             info[matched.group("key")] = matched.group("value").strip()
+    return info
+
+
+def _is_job_not_found_error(error_output: Union[bytes, str]) -> bool:
+    if not isinstance(error_output, str):
+        error_output = error_output.decode()
+    return re.search(r"error:\sjob\sid\s(\d+)\snot\sfound", error_output) is not None
+
+
+def parse_array(array_str: str):
+    if array_str.isnumeric():
+        return [
+            int(array_str),
+        ]
+    elif "," in array_str:
+        return list(map(int, array_str.split(",")))
+    pattern = r"(?P<start>\d+)-(?P<end>\d+):(?P<step>\d+)"
+    match = re.match(pattern, array_str)
+    if match:
+        return list(range(int(match.group("start")), int(match.group("end")) + 1, int(match.group("step"))))
+    return []
+
+
+def _process_job_list(e):
+    info = {}
+    state = e.attrib["state"]
+    job_number = e.find("JB_job_number").text
+    tasks = e.find("tasks")
+    if tasks is not None:
+        array_ids = parse_array(tasks.text)
+        for ai in array_ids:
+            info["{}_{}".format(job_number, ai)] = {"State": state}
+    else:
+        info["{}".format(job_number)] = {"State": state}
+    return info
+
+
+def _parse_qstat(qstat_xml_output: str):
+    info = {}
+    root = ET.fromstring(qstat_xml_output)
+    for elem in root.iter("job_list"):
+        info.update(_process_job_list(elem))
     return info
 
 
@@ -45,7 +89,6 @@ class GridEngineInfoWatcher(core.InfoWatcher):
         sge_root = os.environ["SGE_ROOT"]
         sge_cell = os.environ["SGE_CELL"]
         default_accounting_file = os.path.join(sge_root, sge_cell, "common/accounting")
-        act_qmaster_file = os.path.join(sge_root, sge_cell, "common/act_qmaster")
         if not os.path.exists(default_accounting_file):
             master = self._read_act_qmaster(sge_root, sge_cell)
             command = ["ssh", master, "qacct"]
@@ -69,6 +112,49 @@ class GridEngineInfoWatcher(core.InfoWatcher):
         command.extend(["-j", ",".join(to_check)])
         return command
 
+    def _collect_info_from_qstat(self):
+        try:
+            output = subprocess.check_output(["qstat", "-xml"], shell=False)
+        except Exception as e:
+            logger.get_logger().warning(
+                f"Call #{self.num_calls} - Bypassing qacct error {e}, status may be inaccurate."
+            )
+            info = {}
+        else:
+            info = _parse_qstat(output.decode())
+        return info
+
+    def update(self) -> None:
+        """Updates the info of all registered jobs with a call to qacct
+        """
+        # Adapted from core
+        command = self._make_command()
+        if command is None:
+            return
+        self._num_calls += 1
+        # First use qstat to find out jobs that are still waiting/running
+        qstat_info = self._collect_info_from_qstat()
+        self._info_dict.update(qstat_info)
+
+        try:
+            self._output = subprocess.check_output(command, stderr=subprocess.PIPE, shell=False)
+        except subprocess.CalledProcessError as e:
+            # be graceful in the case qacct failed because of not having the information for a job.
+            if not _is_job_not_found_error(e.stderr):
+                raise
+        except Exception as e:
+            logger.get_logger().warning(
+                f"Call #{self.num_calls} - Bypassing qacct error {e}, status may be inaccurate."
+            )
+        else:
+            self._info_dict.update(self.read_info(self._output))
+        self._last_status_check = time.time()
+        # check for finished jobs
+        to_check = self._registered - self._finished
+        for job_id in to_check:
+            if self.is_done(job_id, mode="cache"):
+                self._finished.add(job_id)
+
     def get_state(self, job_id: str, mode: str = "standard") -> str:
         """Returns the state of the job
         State of finished jobs are cached (use watcher.clear() to remove all cache)
@@ -84,7 +170,7 @@ class GridEngineInfoWatcher(core.InfoWatcher):
         return info.get("State") or "UNKNOWN"
 
     def read_info(self, string: Union[bytes, str]) -> Dict[str, Dict[str, str]]:
-        """Reads the output of sacct and returns a dictionary containing main information
+        """Reads the output of qacct and returns a dictionary containing main information
         """
         if not isinstance(string, str):
             string = string.decode()
@@ -168,7 +254,9 @@ class GridEngineExecutor(core.PicklingExecutor):
         return f"{sys.executable} -u -m submitit.core._submit '{self.folder}'"
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
-        return _make_qsub_string(command=command, folder=str(self.folder), map_count=self.parameters["map_count"])
+        return _make_qsub_string(
+            command=command, folder=str(self.folder), map_count=self.parameters["map_count"]
+        )
 
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]

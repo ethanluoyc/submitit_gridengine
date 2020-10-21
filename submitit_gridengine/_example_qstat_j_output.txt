@@ -1,0 +1,39 @@
+==============================================================
+job_number:                 2469789
+exec_file:                  job_scripts/2469789
+submission_time:            Wed Oct 21 00:28:54 2020
+owner:                      yicheluo
+uid:                        13632
+group:                      cs_postgrad
+gid:                        14700
+sge_o_home:                 /home/yicheluo
+sge_o_log_name:             yicheluo
+sge_o_path:                 /home/yicheluo/submitit_gridengine/venv/bin:/share/apps/python-3.7.0-shared/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/opt/ganglia/bin:/opt/ganglia/sbin:/opt/rocks/bin:/opt/rocks/sbin:/opt/gridengine/bin/lx-amd64:/home/yicheluo/.local/bin:/home/yicheluo/bin
+sge_o_shell:                /bin/bash
+sge_o_workdir:              /home/yicheluo/submitit_gridengine
+sge_o_host:                 pryor
+account:                    sge
+merge:                      y
+hard resource_list:         tmem=2G,h_vmem=2G,h_rt=3600
+mail_list:                  yicheluo@pryor.local
+notify:                     FALSE
+job_name:                   MyTESTJOBNAME
+jobshare:                   0
+shell_list:                 NONE:/bin/bash
+env_list:                   TERM=NONE
+script_file:                test.qsub.sh
+project:                    csml
+job-array tasks:            1-5:1
+binding:                    NONE
+job_type:                   NONE
+usage         1:            cpu=00:00:00, mem=0.00000 GB s, io=0.00000 GB, vmem=N/A, maxvmem=N/A
+usage         2:            cpu=00:00:00, mem=0.00000 GB s, io=0.00000 GB, vmem=N/A, maxvmem=N/A
+usage         3:            cpu=00:00:00, mem=0.00000 GB s, io=0.00000 GB, vmem=N/A, maxvmem=N/A
+usage         4:            cpu=00:00:00, mem=0.00000 GB s, io=0.00209 GB, vmem=2.059M, maxvmem=2.059M
+usage         5:            cpu=00:00:00, mem=0.00000 GB s, io=0.00000 GB, vmem=N/A, maxvmem=N/A
+binding       1:            NONE
+binding       2:            NONE
+binding       3:            NONE
+binding       4:            NONE
+binding       5:            NONE
+scheduling info:            (Collecting of scheduler job information is turned off)

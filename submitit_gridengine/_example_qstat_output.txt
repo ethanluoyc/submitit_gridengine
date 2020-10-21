@@ -1,0 +1,8 @@
+job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID
+-----------------------------------------------------------------------------------------------------------------
+2469790 0.00000 MyTESTJOBN yicheluo     qw    10/21/2020 00:35:03                                    1 1
+2469790 0.00000 MyTESTJOBN yicheluo     qw    10/21/2020 00:35:03                                    1 2
+2469790 0.00000 MyTESTJOBN yicheluo     qw    10/21/2020 00:35:03                                    1 3
+2469790 0.52175 MyTESTJOBN yicheluo     r     10/21/2020 00:35:50 test.q@abner-601-2.local           1 4
+2469790 0.00000 MyTESTJOBN yicheluo     qw    10/21/2020 00:35:03                                    1 5
+2469791 0.00000 MyTESTJOBN yicheluo     qw    10/21/2020 00:38:59                                    1

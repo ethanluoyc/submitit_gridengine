@@ -29,31 +29,32 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
 
 
 @contextlib.contextmanager
-def mocked_slurm(state: str = "RUNNING", job_id: str = "12", array: int = 0) -> tp.Iterator[str]:
+def mocked_gridengine(state: str = "RUNNING", job_id: str = "12", array: int = 0) -> tp.Iterator[str]:
     with contextlib.ExitStack() as stack:
         stack.enter_context(
             test_core.MockedSubprocess(state=state, job_id=job_id, shutil_which="qsub", array=array).context()
         )
-        envs = dict(_USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="gridengine", SLURM_JOB_ID=str(job_id))
+        envs = dict(_USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="gridengine", SUBMITIT_JOB_ID=str(job_id))
         stack.enter_context(utils.environment_variables(**envs))
         tmp = stack.enter_context(tempfile.TemporaryDirectory())
         yield tmp
 
 
 # def test_mocked_missing_state() -> None:
-#     with mocked_slurm(state="       ", job_id="12") as tmp:
+#     with mocked_gridengine(state="       ", job_id="12") as tmp:
 #         job: gridengine.GridEngineJob[None] = gridengine.GridEngineJob(tmp, "12")
 #         assert job.state == "UNKNOWN"
 #         job._interrupt(timeout=False)  # check_call is bypassed by MockedSubprocess
 
 
 def test_job_environment() -> None:
-    with mocked_slurm(job_id="12"):
+    with mocked_gridengine(job_id="12"):
         assert job_environment.JobEnvironment().cluster == "gridengine"
+        assert job_environment.JobEnvironment().job_id == "12"
 
 
 # def test_slurm_job_mocked() -> None:
-#     with mocked_slurm() as tmp:
+#     with mocked_gridengine() as tmp:
 #         executor = gridengine.GridEngineExecutor(folder=tmp)
 #         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
 #         assert job.job_id == "12"
@@ -75,7 +76,7 @@ def test_job_environment() -> None:
 # @pytest.mark.parametrize("context", (True, False))  # type: ignore
 # def test_slurm_job_array_mocked(context: bool) -> None:
 #     n = 5
-#     with mocked_slurm(array=n) as tmp:
+#     with mocked_gridengine(array=n) as tmp:
 #         executor = gridengine.GridEngineExecutor(folder=tmp)
 #         executor.update_parameters(array_parallelism=3)
 #         data1, data2 = range(n), range(10, 10 + n)
@@ -108,7 +109,7 @@ def test_job_environment() -> None:
 
 
 # def test_slurm_error_mocked() -> None:
-#     with mocked_slurm() as tmp:
+#     with mocked_gridengine() as tmp:
 #         executor = gridengine.GridEngineExecutor(folder=tmp)
 #         executor.update_parameters(time=24, gpus_per_node=0)  # just to cover the function
 #         job = executor.submit(test_core.do_nothing, 1, 2, error=12)
@@ -180,7 +181,7 @@ def test_job_environment() -> None:
 
 
 # def test_update_parameters_error() -> None:
-#     with mocked_slurm() as tmp:
+#     with mocked_gridengine() as tmp:
 #         with pytest.raises(ValueError):
 #             executor = gridengine.GridEngineExecutor(folder=tmp)
 #             executor.update_parameters(blublu=12)
@@ -258,6 +259,13 @@ def test_parse_accounting_info():
     assert info["taskid"] == "undefined"
 
 
+@pytest.mark.parametrize( # type: ignore
+    "array_str,ids", [("1", [1]), ("1,2", [1,2]), ("1-5:1", range(1, 6))]
+)
+def test_parse_array_ids(array_str: str, ids: tp.List[int]):
+    assert gridengine.parse_array(array_str) == list(ids)
+
+
 # @pytest.mark.parametrize(  # type: ignore
 #     "name,state", [("12_0", "R"), ("12_1", "U"), ("12_2", "X"), ("12_3", "U"), ("12_4", "X")]
 # )
@@ -283,6 +291,16 @@ def test_parse_accounting_info():
 # def test_read_job_id(job_id: str, expected: tp.List[tp.Tuple[tp.Union[int, str], ...]]) -> None:
 #     output = gridengine.read_job_id(job_id)
 #     assert output == [tuple(str(x) for x in group) for group in expected]
+_GARBLDED_OUTPUT = """
+could not open any host key
+ssh_keysign: no reply
+sign using hostkey ecdsa-sha2-nistp521 dksjfdkl failed
+error: job id 2469764 not found
+"""
+
+
+def test_qacct_output():
+    assert gridengine._is_job_not_found_error(_GARBLDED_OUTPUT)
 
 
 @pytest.mark.parametrize(  # type: ignore
@@ -303,7 +321,7 @@ def test_get_id_from_submission_command_raise() -> None:
 
 
 # def test_watcher() -> None:
-#     with mocked_slurm():
+#     with mocked_gridengine():
 #         watcher = sge.SgeInfoWatcher()
 #         assert watcher.num_calls == 0
 #         state = watcher.get_state(job_id="11")
@@ -318,5 +336,9 @@ def test_get_id_from_submission_command_raise() -> None:
 #     assert defaults["nodes"] == 1
 
 
-def test_name() -> None:
-    assert gridengine.GridEngineExecutor.name() == "sge"
+def test_executor_name() -> None:
+    assert gridengine.GridEngineExecutor.name() == "gridengine"
+
+
+def test_job_env_name() -> None:
+    assert gridengine.GridEngineJobEnvironment.name() == "gridengine"

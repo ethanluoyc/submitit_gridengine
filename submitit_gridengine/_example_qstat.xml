@@ -1,0 +1,50 @@
+<?xml version='1.0'?>
+<job_info  xmlns:xsd="http://arc.liv.ac.uk/repos/darcs/sge/source/dist/util/resources/schemas/qstat/qstat.xsd">
+  <queue_info>
+    <job_list state="running">
+      <JB_job_number>2469793</JB_job_number>
+      <JAT_prio>0.57898</JAT_prio>
+      <JB_name>MyTESTJOBNAME</JB_name>
+      <JB_owner>yicheluo</JB_owner>
+      <state>r</state>
+      <JAT_start_time>2020-10-21T00:46:44</JAT_start_time>
+      <queue_name>all.q@abner-601-7.local</queue_name>
+      <slots>1</slots>
+    </job_list>
+    <job_list state="running">
+      <JB_job_number>2469794</JB_job_number>
+      <JAT_prio>0.51860</JAT_prio>
+      <JB_name>MyTESTJOBNAME</JB_name>
+      <JB_owner>yicheluo</JB_owner>
+      <state>r</state>
+      <JAT_start_time>2020-10-21T00:49:04</JAT_start_time>
+      <queue_name>all.q@fry-611-147.local</queue_name>
+      <slots>1</slots>
+      <tasks>2</tasks>
+    </job_list>
+    <job_list state="running">
+      <JB_job_number>2469794</JB_job_number>
+      <JAT_prio>0.51860</JAT_prio>
+      <JB_name>MyTESTJOBNAME</JB_name>
+      <JB_owner>yicheluo</JB_owner>
+      <state>r</state>
+      <JAT_start_time>2020-10-21T00:49:04</JAT_start_time>
+      <queue_name>all.q@burns-609-66.local</queue_name>
+      <slots>1</slots>
+      <tasks>3</tasks>
+    </job_list>
+  </queue_info>
+  <job_info>
+    <job_list state="pending">
+      <JB_job_number>2469795</JB_job_number>
+      <JAT_prio>0.00000</JAT_prio>
+      <JB_name>MyTESTJOBNAME</JB_name>
+      <JB_owner>yicheluo</JB_owner>
+      <state>qw</state>
+      <JB_submission_time>2020-10-21T00:47:11</JB_submission_time>
+      <queue_name></queue_name>
+      <slots>1</slots>
+      <tasks>1-5:1</tasks>
+    </job_list>
+  </job_info>
+</job_info>
