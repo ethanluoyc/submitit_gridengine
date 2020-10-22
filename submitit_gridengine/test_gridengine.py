@@ -52,6 +52,11 @@ def test_job_environment() -> None:
         assert job_environment.JobEnvironment().cluster == "gridengine"
         assert job_environment.JobEnvironment().job_id == "12"
 
+import re
+def test_parse_exit_status():
+    matched = re.match(r"\d+", '140                  (User defined signal 2)')
+    assert matched.group(0) == '140'
+
 
 # def test_slurm_job_mocked() -> None:
 #     with mocked_gridengine() as tmp:

@@ -9,6 +9,7 @@ import functools
 import inspect
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from submitit.core import core, job_environment, logger, utils
+from submitit.core.utils import DelayedSubmission, JobPaths
+from submitit.core.job_environment import SignalHandler
 
 
 def parse_accounting_info(output: str) -> Dict[str, str]:
@@ -188,7 +191,15 @@ class GridEngineInfoWatcher(core.InfoWatcher):
                 else part_info["jobnumber"]
             )
             all_stats[job_id] = {}
-            state = "SUCCESS" if int(part_info["failed"]) == 0 else "FAILED"
+            matched = re.match(r"\d+", part_info["failed"])
+            if matched:
+                exit_status = matched.group(0)
+            else:
+                logger.get_logger().warning(
+                    f"Unable to parse exit status \"{part_info}\", status may be inaccurate."
+                )
+                exit_status = "NA"
+            state = "SUCCESS" if exit_status == "0" else "FAILED"
             all_stats[job_id]["State"] = state
         return all_stats
 
@@ -208,6 +219,19 @@ class GridEngineJobEnvironment(job_environment.JobEnvironment):
         "global_rank": "SUBMITIT_GLOBAL_RANK",
         "local_rank": "SUBMITIT_LOCAL_RANK",
     }
+
+    def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
+        """Set up signals handler for the current executable.
+
+        The default implementation checkpoint the given submission and requeues it.
+        @plugin-dev: Should be adapted to the signals used in this cluster.
+        """
+        handler = SignalHandler(self, paths, submission)
+        # In SGE, when -notify is enabled,
+        # a SIGUSR2 signal is sent to the process before some time before the SIGKILL.
+        # Refer to the time delay in `notify` in `qconf -sq <queuename>` for the time
+        # SIGUSR2 is sent before SIGKILL
+        signal.signal(signal.SIGUSR2, handler.checkpoint_and_exit)
 
     def _requeue(self, countdown: int) -> None:
         raise NotImplementedError  # TODO
@@ -248,6 +272,13 @@ class GridEngineExecutor(core.PicklingExecutor):
     def name(cls) -> str:
         return "gridengine"
 
+    @classmethod
+    def _valid_parameters(cls) -> Set[str]:
+        """Parameters that can be set through update_parameters
+        """
+        # TODO
+        return set()
+
     @property
     def _submitit_command_str(self) -> str:
         # make sure to use the current executable (required in pycharm)
@@ -255,7 +286,7 @@ class GridEngineExecutor(core.PicklingExecutor):
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_qsub_string(
-            command=command, folder=str(self.folder), map_count=self.parameters["map_count"]
+            command=command, folder=str(self.folder), **self.parameters
         )
 
     def _internal_process_submissions(
@@ -325,12 +356,15 @@ class GridEngineExecutor(core.PicklingExecutor):
 def _make_qsub_string(
     command: str,
     folder: str,
-    map_count: int = 1,
     job_name: str = "submitit",
-    tmem: str = "2G",
-    h_vmem: str = "2G",
-    h_rt: str = "00:02:00",
+    tmem: str = "2G", # physical memory limit
+    h_vmem: str = "2G", # virtual memory limit
+    h_rt: str = "00:02:00", # wall time
+    num_gpus: int = 0,
     shell: str = "/bin/bash",
+    merge: bool = False, # whether to merge stdout and stderr
+    tc: Optional[int] = None, # concurrent number of tasks
+    map_count: int = 1, # For array jobs
 ):
     """Build a SGE submission script
 
@@ -340,8 +374,6 @@ def _make_qsub_string(
         the command to run
     job_name: str
         the command to run
-    num_jobs: int
-        the number of array jobs
 
     Return
     ------
@@ -352,6 +384,8 @@ def _make_qsub_string(
     -----
     TODO: implement full set of flags in https://hpc.cs.ucl.ac.uk/full-guide/.
     Also see http://gridscheduler.sourceforge.net/htmlman/manuals.html
+        * wd: #$ /home/jbloggs
+        * reserve: # -R y
     """
     lines = []
     lines += [f"#$ -l tmem={tmem}"]
@@ -365,15 +399,24 @@ def _make_qsub_string(
         stderr = str(paths.stderr).replace("%j", "$JOB_ID_$TASK_ID").replace("%t", "0")
     else:
         job_id = "${JOB_ID}"
-        stdout = str(paths.stdout).replace("%j", "$JOB_ID")
-        stderr = str(paths.stderr).replace("%j", "$JOB_ID")
+        stdout = str(paths.stdout).replace("%j", "$JOB_ID").replace("%t", "0")
+        stderr = str(paths.stderr).replace("%j", "$JOB_ID").replace("%t", "0")
     lines += [f"#$ -o {stdout}"]
     lines += [f"#$ -e {stderr}"]
-    lines += ["#$ -cwd"]
+    if merge:
+        lines += [f"#$ -j"]
     lines += [f"#$ -N {job_name}"]
+    # TODO allow configuring cwd and environment variables
+    lines += ["#$ -cwd"]
     lines += [f"#$ -V"]
+    if num_gpus > 0:
+        lines +=[f"#$ -l gpu=true", f"#$ -pe gpu {num_gpus}"]
     if map_count > 1:
         lines += [f"#$ -t 1-{map_count}"]
+    if tc is not None and map_count > 1:
+        lines += [f"#$ -tc {tc}"]
+    lines += ["#$ -notify"]
+
     lines += [f"export SUBMITIT_JOB_ID={job_id}"]
     # Support only ntasks=1 for now
     lines += ["export SUBMITIT_NTASKS=1"]
