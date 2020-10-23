@@ -17,7 +17,6 @@ def main():
     a = [1, 2]
     b = [10, 3]
     executor = gridengine.GridEngineExecutor(folder=log_folder)
-    executor.update_parameters(tasks_per_node=2)
     jobs = executor.map_array(add, a, b)  # just a list of jobs
     print(jobs)
     [j.result() for j in jobs]

@@ -212,12 +212,24 @@ class GridEngineJob(core.Job[core.R]):
 class GridEngineJobEnvironment(job_environment.JobEnvironment):
 
     _env = {
-        "job_id": "SUBMITIT_JOB_ID",
+        # These fields are required for the rest of submitit to work properly
+        "job_id": "JOB_ID",
+        # TODO(ethan): handle tasks which is a Slurm-only concept
         "num_tasks": "SUBMITIT_NTASKS",
-        "num_nodes": "SUBMITIT_JOB_NUM_NODES",
+        "num_nodes": "NHOSTS",
+        # TODO(ethan): Handle multi-node parallelism
         "node": "SUBMITIT_NODEID",
         "global_rank": "SUBMITIT_GLOBAL_RANK",
         "local_rank": "SUBMITIT_LOCAL_RANK",
+        "array_job_id": "JOB_ID",
+        "array_task_id": "SGE_TASK_ID",
+        # These are fields from SGE
+        # "job_name": "JOB_NAME",
+        # "num_queues": "NQUEUEs",
+        # "num_slots": "NSLOTS",
+        # "parallel_environment": "PE",
+        # "parallel_environment_hostfile": "PE_HOSTFILE",
+        # "queue_name": "QUEUE",
     }
 
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
@@ -276,8 +288,7 @@ class GridEngineExecutor(core.PicklingExecutor):
     def _valid_parameters(cls) -> Set[str]:
         """Parameters that can be set through update_parameters
         """
-        # TODO
-        return set()
+        return set(_get_default_parameters().keys())
 
     @property
     def _submitit_command_str(self) -> str:
@@ -288,6 +299,19 @@ class GridEngineExecutor(core.PicklingExecutor):
         return _make_qsub_string(
             command=command, folder=str(self.folder), **self.parameters
         )
+
+    def _internal_update_parameters(self, **kwargs: Any) -> None:
+        defaults = _get_default_parameters()
+        in_valid_parameters = sorted(set(kwargs) - set(defaults))
+        if in_valid_parameters:
+            string = "\n  - ".join(f"{x} (default: {repr(y)})" for x, y in sorted(defaults.items()))
+            raise ValueError(
+                f"Unavailable parameter(s): {in_valid_parameters}\nValid parameters are:\n  - {string}"
+            )
+        super()._internal_update_parameters(**kwargs)
+
+    def _num_tasks(self):
+        return 1 # TODO(ethan): handle more than one tasks.
 
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
@@ -316,10 +340,9 @@ class GridEngineExecutor(core.PicklingExecutor):
         # Submit delay submissions as an array job,
         # This means that each job will now have id $job_id_$array_id
         first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
-        tasks_ids = list(range(first_job.num_tasks))
         jobs: List[core.Job[tp.Any]] = [
             # SGE expects task ids to be positive
-            GridEngineJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids)
+            GridEngineJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}")
             for a in range(1, n + 1)
         ]
         # Move individual submitted pickle
@@ -328,11 +351,6 @@ class GridEngineExecutor(core.PicklingExecutor):
         for job, pickle_path in zip(jobs, pickle_paths):
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
         return jobs
-
-    def _num_tasks(self) -> int:
-        nodes: int = 1
-        tasks_per_node: int = self.parameters.get("ntasks_per_node", 1)
-        return nodes * tasks_per_node
 
     def _make_submission_command(self, submission_file_path: Path) -> List[str]:
         return ["qsub", str(submission_file_path)]
@@ -352,6 +370,17 @@ class GridEngineExecutor(core.PicklingExecutor):
             )
         return output.group("id")
 
+def _get_default_parameters():
+    return dict(
+        job_name="submitit",
+        tmem="2G",
+        h_vmem="2G",
+        h_rt="00:02:00",
+        num_gpus=0,
+        shell="/bin/bash",
+        merge=False,
+        tc=None,
+    )
 
 def _make_qsub_string(
     command: str,
@@ -417,11 +446,9 @@ def _make_qsub_string(
         lines += [f"#$ -tc {tc}"]
     lines += ["#$ -notify"]
 
-    lines += [f"export SUBMITIT_JOB_ID={job_id}"]
     # Support only ntasks=1 for now
     lines += ["export SUBMITIT_NTASKS=1"]
     lines += ["export SUBMITIT_NODEID=0"]
-    lines += ["export SUBMITIT_JOB_NUM_NODES=1"]
     lines += ["export SUBMITIT_GLOBAL_RANK=0"]
     lines += ["export SUBMITIT_LOCAL_RANK=0"]
     lines += ["export SUBMITIT_EXECUTOR=gridengine"]

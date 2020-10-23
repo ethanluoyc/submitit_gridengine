@@ -17,6 +17,7 @@ from submitit.core import job_environment, submission, test_core, utils
 from submitit.core.core import Job
 
 from submitit_gridengine import gridengine
+from submitit_gridengine.mocks import MockedSubprocess
 
 
 def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> None:
@@ -32,7 +33,7 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
 def mocked_gridengine(state: str = "RUNNING", job_id: str = "12", array: int = 0) -> tp.Iterator[str]:
     with contextlib.ExitStack() as stack:
         stack.enter_context(
-            test_core.MockedSubprocess(state=state, job_id=job_id, shutil_which="qsub", array=array).context()
+            MockedSubprocess(state=state, job_id=job_id, shutil_which="qsub", array=array).context()
         )
         envs = dict(_USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="gridengine", SUBMITIT_JOB_ID=str(job_id))
         stack.enter_context(utils.environment_variables(**envs))
@@ -58,12 +59,12 @@ def test_parse_exit_status():
     assert matched.group(0) == '140'
 
 
-# def test_slurm_job_mocked() -> None:
+# def test_engine_job_mocked() -> None:
 #     with mocked_gridengine() as tmp:
 #         executor = gridengine.GridEngineExecutor(folder=tmp)
 #         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
 #         assert job.job_id == "12"
-#         assert job.state == "RUNNING"
+#         assert job.state == "UNKNOWN"
 #         assert job.stdout() is None
 #         _mock_log_files(job, errors="This is the error log\n", prints="hop")
 #         job._results_timeout_s = 0
@@ -113,10 +114,10 @@ def test_parse_exit_status():
 #         assert array_line == ["#SBATCH --array=0-4%3"]
 
 
-# def test_slurm_error_mocked() -> None:
+# def test_gridengine_error_mocked() -> None:
 #     with mocked_gridengine() as tmp:
 #         executor = gridengine.GridEngineExecutor(folder=tmp)
-#         executor.update_parameters(time=24, gpus_per_node=0)  # just to cover the function
+#         # executor.update_parameters(time=24, gpus_per_node=0)  # just to cover the function
 #         job = executor.submit(test_core.do_nothing, 1, 2, error=12)
 #         with pytest.raises(ValueError):
 #             submission.process_job(job.paths.folder)
@@ -184,26 +185,20 @@ def test_parse_exit_status():
 #     string = gridengine._make_sbatch_string(command="blublu", folder="/tmp", gpus_per_node=2)
 #     assert "--gpus-per-node=2" in string
 
+def test_update_parameters() -> None:
+    with mocked_gridengine() as tmp:
+        executor = gridengine.GridEngineExecutor(folder=tmp)
+        executor.update_parameters(h_vmem="3GB")
+        assert executor.parameters['h_vmem'] == "3GB"
 
-# def test_update_parameters_error() -> None:
-#     with mocked_gridengine() as tmp:
-#         with pytest.raises(ValueError):
-#             executor = gridengine.GridEngineExecutor(folder=tmp)
-#             executor.update_parameters(blublu=12)
+
+def test_update_parameters_error() -> None:
+    with mocked_gridengine() as tmp:
+        with pytest.raises(ValueError):
+            executor = gridengine.GridEngineExecutor(folder=tmp)
+            executor.update_parameters(blublu=12)
 
 
-# def test_read_info() -> None:
-#     example = """JobID|State
-# 5610980|RUNNING
-# 5610980.ext+|RUNNING
-# 5610980.0|RUNING
-# 20956421_0|RUNNING
-# 20956421_[2-4%25]|PENDING
-# """
-#     output = gridengine.GridEngineInfoWatcher().read_info(example)
-#     assert output["5610980"] == {"JobID": "5610980", "State": "RUNNING"}
-#     assert output["20956421_2"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
-#     assert set(output) == {"5610980", "20956421_0", "20956421_2", "20956421_3", "20956421_4"}
 _TEST_QSUB_OUTPUT = """Your job 2466409 ("MyTESTJOBNAME") has been submitted
 """
 _TEST_QSTAT_OUTPUT = """job-ID  prior   name       user         state submit/start at     queue                          slots ja-task-ID
@@ -327,7 +322,7 @@ def test_get_id_from_submission_command_raise() -> None:
 
 # def test_watcher() -> None:
 #     with mocked_gridengine():
-#         watcher = sge.SgeInfoWatcher()
+#         watcher = gridengine.GridEngineInfoWatcher()
 #         assert watcher.num_calls == 0
 #         state = watcher.get_state(job_id="11")
 #         assert state == "UNKNOWN"
@@ -336,9 +331,9 @@ def test_get_id_from_submission_command_raise() -> None:
 #         assert watcher._registered == {"11"}
 
 
-# def test_get_default_parameters() -> None:
-#     defaults = sge._get_default_parameters()
-#     assert defaults["nodes"] == 1
+def test_get_default_parameters() -> None:
+    defaults = gridengine._get_default_parameters()
+    assert defaults["num_gpus"] == 0
 
 
 def test_executor_name() -> None:
