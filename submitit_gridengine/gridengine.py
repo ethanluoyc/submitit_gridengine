@@ -232,6 +232,24 @@ class GridEngineJobEnvironment(job_environment.JobEnvironment):
         # "queue_name": "QUEUE",
     }
 
+    @property
+    def job_id(self) -> Optional[str]:
+        if self.array_job_id and self.array_task_id:
+            return f"{self.array_job_id}_{self.array_task_id}"
+        return self.raw_job_id
+
+    @property
+    def array_job_id(self) -> Optional[str]:
+        n = "array_job_id"
+        value = os.environ.get(self._env[n], None)
+        return None if (value is None or str(value) == "undefined") else value
+
+    @property
+    def array_task_id(self) -> Optional[str]:
+        n = "array_task_id"
+        value = os.environ.get(self._env[n], None)
+        return None if (value is None or str(value) == "undefined") else value
+
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
         """Set up signals handler for the current executable.
 
