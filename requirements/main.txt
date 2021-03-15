@@ -1,2 +1,1 @@
-typing_extensions>=3.7.4.2
-submitit==1.1.1
+submitit>=1.0.0
