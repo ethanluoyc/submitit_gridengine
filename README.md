@@ -1,4 +1,5 @@
 # Submit it! Grid Engine plugin
+[![pytest](https://github.com/ethanluoyc/submitit_gridengine/actions/workflows/test.yml/badge.svg)](https://github.com/ethanluoyc/submitit_gridengine/actions/workflows/test.yml)
 
 A plugin for the submitit library that supports the Grid Engine cluster scheduler.
 This library is tested with [Son of Grid Engine](https://arc.liv.ac.uk/trac/SGE) (SGE) Version 8.1.9.
