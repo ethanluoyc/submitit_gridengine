@@ -1,4 +1,4 @@
 defaults:
-  - override hydra/launcher: submitit_gridengine
+  - hydra/launcher: submitit_gridengine
 
 task: 1

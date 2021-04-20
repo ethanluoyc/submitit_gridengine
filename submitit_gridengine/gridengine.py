@@ -392,12 +392,13 @@ def _get_default_parameters():
     return dict(
         job_name="submitit",
         tmem="2G",
-        h_vmem="2G",
+        h_vmem="4G",
         h_rt="00:02:00",
         num_gpus=0,
         shell="/bin/bash",
         merge=False,
         tc=None,
+        smp=1
     )
 
 def _make_qsub_string(
@@ -408,6 +409,7 @@ def _make_qsub_string(
     h_vmem: str = "2G", # virtual memory limit
     h_rt: str = "00:02:00", # wall time
     num_gpus: int = 0,
+    smp: int = 1,
     shell: str = "/bin/bash",
     merge: bool = False, # whether to merge stdout and stderr
     tc: Optional[int] = None, # concurrent number of tasks
@@ -460,6 +462,8 @@ def _make_qsub_string(
         lines +=[f"#$ -l gpu=true", f"#$ -pe gpu {num_gpus}"]
     if map_count > 1:
         lines += [f"#$ -t 1-{map_count}"]
+    if smp > 1:
+        lines += [f"#$ -pe smp {smp}"]
     if tc is not None and map_count > 1:
         lines += [f"#$ -tc {tc}"]
     lines += ["#$ -notify"]

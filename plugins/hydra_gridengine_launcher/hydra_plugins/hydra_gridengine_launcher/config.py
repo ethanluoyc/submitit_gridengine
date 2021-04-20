@@ -4,28 +4,30 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from hydra.core.config_store import ConfigStore
-from hydra_plugins.hydra_submitit_launcher.config import BaseQueueConf
+from hydra_plugins.hydra_submitit_launcher.config import BaseQueueConf, SlurmQueueConf
 
 
 @dataclass
 class GridEngineQueueConf:
     _target_: str = (
-        "hydra_plugins.hydra_gridengine_launcher.submitit_launcher.GridEngineLauncher"
+        "hydra_plugins.hydra_gridengine_launcher.gridengine_launcher.GridEngineLauncher"
     )
+
+    merge: bool = False
     submitit_folder: str = "${hydra.sweep.dir}/.submitit/%j"
-    merge = False
-    job_name = 'submitit'
-    num_gpus = 0
-    shell = '/bin/bash'
-    tc = None
-    tmem = '2G'
-    h_vmem = '2G'
-    h_timeout = '00:02:00'
+    job_name: str = "submitit"
+    num_gpus: int = 0
+    shell: str = "/bin/bash"
+    tc: Optional[str] = None
+    tmem: str = "4G"
+    h_vmem: str = "4G"
+    h_rt: str = "01:00:00"
+    smp: int = 1
 
 
 ConfigStore.instance().store(
     group="hydra/launcher",
     name="submitit_gridengine",
     node=GridEngineQueueConf(),
-    provider="submitit_launcher",
+    provider="hydra_gridengine_launcher",
 )
