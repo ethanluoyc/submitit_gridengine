@@ -35,7 +35,9 @@ def mocked_gridengine(state: str = "RUNNING", job_id: str = "12", array: int = 0
         stack.enter_context(
             MockedSubprocess(state=state, job_id=job_id, shutil_which="qsub", array=array).context()
         )
-        envs = dict(_USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="gridengine", SUBMITIT_JOB_ID=str(job_id))
+        envs = dict(
+            _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="gridengine", SUBMITIT_JOB_ID=str(job_id), 
+            JOB_ID=str(job_id))
         stack.enter_context(utils.environment_variables(**envs))
         tmp = stack.enter_context(tempfile.TemporaryDirectory())
         yield tmp
