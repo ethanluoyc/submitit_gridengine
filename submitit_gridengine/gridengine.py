@@ -391,22 +391,23 @@ class GridEngineExecutor(core.PicklingExecutor):
 def _get_default_parameters():
     return dict(
         job_name="submitit",
-        tmem="2G",
+        tmem="4G",
         h_vmem="4G",
         h_rt="00:02:00",
         num_gpus=0,
         shell="/bin/bash",
         merge=False,
         tc=None,
-        smp=1
+        smp=1,
+        reserve=True,
     )
 
 def _make_qsub_string(
     command: str,
     folder: str,
     job_name: str = "submitit",
-    tmem: str = "2G", # physical memory limit
-    h_vmem: str = "2G", # virtual memory limit
+    tmem: str = "4G", # physical memory limit
+    h_vmem: str = "4G", # virtual memory limit
     h_rt: str = "00:02:00", # wall time
     num_gpus: int = 0,
     smp: int = 1,
@@ -414,6 +415,7 @@ def _make_qsub_string(
     merge: bool = False, # whether to merge stdout and stderr
     tc: Optional[int] = None, # concurrent number of tasks
     map_count: int = 1, # For array jobs
+    reserve: bool = True
 ):
     """Build a SGE submission script
 
@@ -467,12 +469,17 @@ def _make_qsub_string(
     if tc is not None and map_count > 1:
         lines += [f"#$ -tc {tc}"]
     lines += ["#$ -notify"]
-
+    if reserve:
+        lines += ['#$ -R y']
     # Support only ntasks=1 for now
     lines += ["export SUBMITIT_NTASKS=1"]
     lines += ["export SUBMITIT_NODEID=0"]
     lines += ["export SUBMITIT_GLOBAL_RANK=0"]
     lines += ["export SUBMITIT_LOCAL_RANK=0"]
     lines += ["export SUBMITIT_EXECUTOR=gridengine"]
+    if num_gpus > 0:
+        lines += ['env']
+        lines += ['nvidia-smi']
     lines += [command]
+    lines += ['exit $?']
     return "\n".join(lines)
